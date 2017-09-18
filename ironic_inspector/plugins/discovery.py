@@ -70,9 +70,17 @@ def _check_existing_nodes(introspection_data, node_driver_info, ironic):
     # verify existing node with discovered ipmi address
     ipmi_address = node_driver_info.get('ipmi_address')
     if ipmi_address:
-        # FIXME(aarefiev): it's not effective to fetch all nodes, and may
-        #                  impact on performance on big clusters
-        nodes = ironic.node.list(fields=('uuid', 'driver_info'), limit=0)
+        # query ironic API in bulks of <limit> nodes
+        limit = 100
+        nodes = []
+        marker = None
+        done = False
+        while not done:
+            temp_nodes = ironic.node.list(fields=('uuid', 'driver_info'), limit=limit, marker=marker)
+            marker = temp_nodes[-1].uuid
+            nodes += temp_nodes
+            if len(temp_nodes) < limit:
+                done = True
         for node in nodes:
             if ipmi_address == ir_utils.get_ipmi_address(node):
                 raise utils.Error(
